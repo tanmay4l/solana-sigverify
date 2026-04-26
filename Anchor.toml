@@ -1,18 +1,18 @@
 [toolchain]
-anchor_version = "0.32.1"
+anchor_version = "0.29.0"
 
 [provider]
 cluster = "Localnet"
 wallet = "~/.config/solana/id.json"
 
 [programs.localnet]
-batch_sigverify = "2o1R3JBBaY39F6zRMyKpfZhFq88bEARA1b2bbUe39tVo"
+batch_sigverify = "4vH2fvTbfgtSwS4nNzUEfHXVRFhXKjhPiEmF9RXd3bVx"
 
 [programs.devnet]
-batch_sigverify = "2o1R3JBBaY39F6zRMyKpfZhFq88bEARA1b2bbUe39tVo"
+batch_sigverify = "4vH2fvTbfgtSwS4nNzUEfHXVRFhXKjhPiEmF9RXd3bVx"
 
 [programs.mainnet]
-batch_sigverify = "2o1R3JBBaY39F6zRMyKpfZhFq88bEARA1b2bbUe39tVo"
+batch_sigverify = "4vH2fvTbfgtSwS4nNzUEfHXVRFhXKjhPiEmF9RXd3bVx"
 
 [registry]
 url = "https://api.github.com/repos/coral-xyz/anchor"

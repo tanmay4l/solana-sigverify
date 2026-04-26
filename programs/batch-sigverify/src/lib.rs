@@ -1,11 +1,14 @@
 use anchor_lang::prelude::*;
-use anchor_lang::solana_program::ed25519_program;
 use anchor_lang::solana_program::instruction::Instruction;
-use anchor_lang::solana_program::sysvar::instructions::{
-    self as ix_sysvar, load_instruction_at_checked,
-};
+use anchor_lang::solana_program::pubkey::Pubkey;
 
-declare_id!("2o1R3JBBaY39F6zRMyKpfZhFq88bEARA1b2bbUe39tVo");
+declare_id!("4vH2fvTbfgtSwS4nNzUEfHXVRFhXKjhPiEmF9RXd3bVx");
+
+const ED25519_PROGRAM_ID: [u8; 32] = [
+    0xed, 0x25, 0x51, 0x9, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11,
+    0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11,
+    0x11, 0x11, 0x11, 0x11,
+];
 
 #[derive(PartialEq, AnchorSerialize, AnchorDeserialize, Clone, Copy)]
 pub enum BatchStatus {
@@ -18,21 +21,18 @@ pub enum BatchStatus {
 pub mod batch_sigverify {
     use super::*;
 
-    // Cap matches BatchResult storage (255 results bools). Practical legacy-tx
-    // cap is ~4 sigs/tx due to 1232-byte limit; v0 tx + LUTs can go higher.
     pub fn verify_batch(ctx: Context<VerifyBatch>, batch: Vec<SignatureInfo>) -> Result<()> {
         require!(!batch.is_empty(), ErrorCode::EmptyBatch);
         require!(batch.len() <= 255, ErrorCode::BatchTooLarge);
 
-        let ix_sysvar_ai = &ctx.accounts.instructions;
         let mut results = Vec::with_capacity(batch.len());
         let mut valid_count = 0u32;
         let mut duplicate_count = 0u32;
-        let mut precompile_cursor: usize = 0;
 
         for (i, sig) in batch.iter().enumerate() {
             require_eq!(sig.signature.len(), 64, ErrorCode::InvalidSignatureLength);
             require_eq!(sig.public_key.len(), 32, ErrorCode::InvalidPublicKeyLength);
+
 
             let mut is_duplicate = false;
             for prev in batch.iter().take(i) {
@@ -48,11 +48,11 @@ pub mod batch_sigverify {
                 continue;
             }
 
-            let ix = load_instruction_at_checked(precompile_cursor, ix_sysvar_ai)?;
-            check_ed25519_data(&ix, &sig.public_key, &sig.signature, &sig.message)?;
-            precompile_cursor += 1;
-            valid_count += 1;
-            results.push(true);
+            let is_valid = ed25519_verify(&sig.public_key, &sig.message, &sig.signature);
+            if is_valid {
+                valid_count += 1;
+            }
+            results.push(is_valid);
         }
 
         let result = &mut ctx.accounts.result;
@@ -86,47 +86,33 @@ pub mod batch_sigverify {
     }
 }
 
-pub fn check_ed25519_data(
-    ix: &Instruction,
-    expected_pubkey: &[u8],
-    expected_sig: &[u8],
-    expected_msg: &[u8],
-) -> Result<()> {
-    require_keys_eq!(ix.program_id, ed25519_program::ID, ErrorCode::WrongPrecompileProgram);
-    require!(ix.accounts.is_empty(), ErrorCode::PrecompileHasAccounts);
+fn ed25519_verify(pubkey: &[u8], message: &[u8], signature: &[u8]) -> bool {
+    const SIG_OFFSET: u8 = 10;
+    const SIG_SIZE: usize = 64;
+    const PUBKEY_SIZE: usize = 32;
 
-    let data = &ix.data;
-    require!(data.len() >= 16, ErrorCode::PrecompileDataTooShort);
-    require!(data[0] == 1, ErrorCode::BadSignatureCount);
-    require!(data[1] == 0, ErrorCode::BadPadding);
+    let pubkey_offset = (SIG_OFFSET as usize + SIG_SIZE) as u8;
+    let msg_offset = (pubkey_offset as usize + PUBKEY_SIZE) as u16;
 
-    let sig_off  = u16::from_le_bytes([data[2],  data[3]])  as usize;
-    let sig_ix   = u16::from_le_bytes([data[4],  data[5]]);
-    let pk_off   = u16::from_le_bytes([data[6],  data[7]])  as usize;
-    let pk_ix    = u16::from_le_bytes([data[8],  data[9]]);
-    let msg_off  = u16::from_le_bytes([data[10], data[11]]) as usize;
-    let msg_size = u16::from_le_bytes([data[12], data[13]]) as usize;
-    let msg_ix   = u16::from_le_bytes([data[14], data[15]]);
+    let mut data = Vec::with_capacity(10 + 64 + 32 + message.len());
+    data.extend_from_slice(&(1u16).to_le_bytes());
+    data.push(SIG_OFFSET);
+    data.push(SIG_SIZE as u8);
+    data.push(pubkey_offset);
+    data.push(PUBKEY_SIZE as u8);
+    data.extend_from_slice(&msg_offset.to_le_bytes());
+    data.extend_from_slice(&(message.len() as u16).to_le_bytes());
+    data.extend_from_slice(signature);
+    data.extend_from_slice(pubkey);
+    data.extend_from_slice(message);
 
-    require!(
-        sig_ix == u16::MAX && pk_ix == u16::MAX && msg_ix == u16::MAX,
-        ErrorCode::WrongInstructionIndex
-    );
+    let ix = Instruction {
+        program_id: Pubkey::from(ED25519_PROGRAM_ID),
+        accounts: vec![],
+        data,
+    };
 
-    let sig_end = sig_off.checked_add(64).ok_or(ErrorCode::OffsetOverflow)?;
-    let pk_end  = pk_off.checked_add(32).ok_or(ErrorCode::OffsetOverflow)?;
-    let msg_end = msg_off.checked_add(msg_size).ok_or(ErrorCode::OffsetOverflow)?;
-    require!(
-        sig_end <= data.len() && pk_end <= data.len() && msg_end <= data.len(),
-        ErrorCode::OffsetOverflow
-    );
-
-    require!(msg_size == expected_msg.len(), ErrorCode::MessageMismatch);
-    require!(&data[sig_off..sig_end] == expected_sig, ErrorCode::SignatureMismatch);
-    require!(&data[pk_off..pk_end] == expected_pubkey, ErrorCode::PubkeyMismatch);
-    require!(&data[msg_off..msg_end] == expected_msg, ErrorCode::MessageMismatch);
-
-    Ok(())
+    anchor_lang::solana_program::program::invoke(&ix, &[]).is_ok()
 }
 
 
@@ -142,9 +128,6 @@ pub struct VerifyBatch<'info> {
     pub result: Account<'info, BatchResult>,
     #[account(mut)]
     pub payer: Signer<'info>,
-    /// CHECK: pinned by address constraint to the Instructions sysvar
-    #[account(address = ix_sysvar::ID)]
-    pub instructions: UncheckedAccount<'info>,
     pub system_program: Program<'info, System>,
 }
 
@@ -204,24 +187,4 @@ pub enum ErrorCode {
     EmptyBatch,
     #[msg("Batch too large")]
     BatchTooLarge,
-    #[msg("Preceding ix is not the Ed25519 program")]
-    WrongPrecompileProgram,
-    #[msg("Ed25519 ix must have no accounts")]
-    PrecompileHasAccounts,
-    #[msg("Ed25519 ix data too short")]
-    PrecompileDataTooShort,
-    #[msg("Ed25519 ix must verify exactly 1 signature")]
-    BadSignatureCount,
-    #[msg("Ed25519 ix padding byte must be zero")]
-    BadPadding,
-    #[msg("Ed25519 offsets must reference current ix")]
-    WrongInstructionIndex,
-    #[msg("Ed25519 offset out of bounds")]
-    OffsetOverflow,
-    #[msg("Signature bytes do not match precompile data")]
-    SignatureMismatch,
-    #[msg("Pubkey bytes do not match precompile data")]
-    PubkeyMismatch,
-    #[msg("Message bytes do not match precompile data")]
-    MessageMismatch,
 }
