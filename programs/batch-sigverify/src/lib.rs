@@ -18,8 +18,6 @@ pub enum BatchStatus {
 pub mod batch_sigverify {
     use super::*;
 
-    // Cap matches BatchResult storage (255 results bools). Practical legacy-tx
-    // cap is ~4 sigs/tx due to 1232-byte limit; v0 tx + LUTs can go higher.
     pub fn verify_batch(ctx: Context<VerifyBatch>, batch: Vec<SignatureInfo>) -> Result<()> {
         require!(!batch.is_empty(), ErrorCode::EmptyBatch);
         require!(batch.len() <= 255, ErrorCode::BatchTooLarge);
@@ -142,7 +140,6 @@ pub struct VerifyBatch<'info> {
     pub result: Account<'info, BatchResult>,
     #[account(mut)]
     pub payer: Signer<'info>,
-    /// CHECK: pinned by address constraint to the Instructions sysvar
     #[account(address = ix_sysvar::ID)]
     pub instructions: UncheckedAccount<'info>,
     pub system_program: Program<'info, System>,

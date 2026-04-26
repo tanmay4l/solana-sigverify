@@ -25,17 +25,17 @@ cargo run --manifest-path client/Cargo.toml
 
 ## How it works
 
-1. Submit batch of signatures + messages + public keys
-2. Program deduplicates by comparing full 64-byte signatures
-3. Verifies each unique signature via Ed25519 syscall
-4. Stores results on-chain (batch_id, valid_count, duplicate_count)
-5. Emits event with verification summary
+1. Client sends Ed25519 precompile instructions before `verify_batch`
+2. Runtime verifies signatures at transaction sanitization (free)
+3. Program deduplicates by comparing full 64-byte signatures
+4. Validates each precompile instruction via the Instructions sysvar
+5. Stores results on-chain (batch_id, valid_count, duplicate_count)
 
 ## Performance
 
-- Dedup cost: <1ms (negligible)
-- Verify cost: ~600 CU per signature
-- Save 600 CU per duplicate detected
+- Signature verification: done by runtime, not the program
+- Program overhead: ~3–5K CU per batch (mostly PDA init)
+- Save one precompile ix per duplicate detected
 
 ## Program ID
 
