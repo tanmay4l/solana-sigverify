@@ -1,0 +1,15 @@
+target/
+.anchor/
+node_modules/
+Cargo.lock
+*.so
+*.rlib
+.DS_Store
+*.swp
+*~
+.env
+.env.local
+*.log
+dist/
+build/
+test-ledger/

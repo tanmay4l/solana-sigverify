@@ -1,0 +1,30 @@
+[package]
+name = "batch-sigverify"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[dependencies]
+anchor-lang = "0.29"
+serde = { version = "1", features = ["derive"] }
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+
+[profile.test]
+opt-level = 1
+
+[dev-dependencies]
+anchor-client = "0.29"
+tokio = { version = "1", features = ["full"] }
+rand = "0.8"
+hex = "0.4"
+borsh = "0.10"
+
+[features]
+idl-build = ["anchor-lang/idl-build"]
