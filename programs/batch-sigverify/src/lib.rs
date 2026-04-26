@@ -68,6 +68,7 @@ pub mod batch_sigverify {
         result.results = results;
         result.timestamp = Clock::get()?.unix_timestamp;
         result.status = BatchStatus::Completed;
+        result.bump = ctx.bumps.result;
 
         emit!(BatchVerifyEvent {
             batch_size: batch.len() as u32,
@@ -77,6 +78,16 @@ pub mod batch_sigverify {
         });
 
         Ok(())
+    }
+
+    pub fn query_result(ctx: Context<QueryResult>) -> Result<BatchResultView> {
+        let r = &ctx.accounts.result;
+        Ok(BatchResultView {
+            batch_id: r.batch_id,
+            valid_count: r.valid_count,
+            duplicate_count: r.duplicate_count,
+            results: r.results.clone(),
+        })
     }
 }
 
@@ -112,11 +123,24 @@ fn ed25519_verify(pubkey: &[u8], message: &[u8], signature: &[u8]) -> bool {
 
 #[derive(Accounts)]
 pub struct VerifyBatch<'info> {
-    #[account(init, payer = payer, space = 8 + BatchResult::MAX_SIZE)]
+    #[account(
+        init,
+        payer = payer,
+        space = 8 + BatchResult::MAX_SIZE,
+        seeds = [b"result", payer.key().as_ref()],
+        bump,
+    )]
     pub result: Account<'info, BatchResult>,
     #[account(mut)]
     pub payer: Signer<'info>,
     pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct QueryResult<'info> {
+    #[account(seeds = [b"result", payer.key().as_ref()], bump = result.bump)]
+    pub result: Account<'info, BatchResult>,
+    pub payer: Signer<'info>,
 }
 
 #[account]
@@ -128,10 +152,19 @@ pub struct BatchResult {
     pub results: Vec<bool>,
     pub timestamp: i64,
     pub status: BatchStatus,
+    pub bump: u8,
 }
 
 impl BatchResult {
-    const MAX_SIZE: usize = 8 + 4 + 4 + 4 + 4 + (255 * 1) + 8 + 1;
+    const MAX_SIZE: usize = 8 + 4 + 4 + 4 + 4 + (255 * 1) + 8 + 1 + 1;
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize)]
+pub struct BatchResultView {
+    pub batch_id: u64,
+    pub valid_count: u32,
+    pub duplicate_count: u32,
+    pub results: Vec<bool>,
 }
 
 #[derive(Clone, AnchorSerialize, AnchorDeserialize)]
