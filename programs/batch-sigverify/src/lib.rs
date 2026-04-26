@@ -33,12 +33,7 @@ pub mod batch_sigverify {
             require_eq!(sig.signature.len(), 64, ErrorCode::InvalidSignatureLength);
             require_eq!(sig.public_key.len(), 32, ErrorCode::InvalidPublicKeyLength);
 
-            // Deduplication via full signature comparison (RFC 8032 best practice).
-            // Full 64-byte comparison is preferred over hashing for Ed25519:
-            // - No collision risk (signatures are 64 bytes fixed-size)
-            // - No cryptographic hash overhead (hashing a fingerprint adds no value)
-            // - O(n^2) worst case is acceptable for max 255 signatures per batch
-            // - Production systems (libsodium, Solana) use direct comparison
+
             let mut is_duplicate = false;
             for prev in batch.iter().take(i) {
                 if prev.signature == sig.signature {
