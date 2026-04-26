@@ -2,12 +2,6 @@
 
 Lightweight Solana program for verifying batches of Ed25519 signatures with deduplication.
 
-## Features
-
-- Batch verify up to 255 Ed25519 signatures in one transaction
-- Automatic signature deduplication (full 64-byte comparison)
-- Atomic processing with result storage on-chain
-- Minimal code (162 lines program, 20 line client)
 
 ## Setup
 
@@ -48,7 +42,3 @@ cargo run --manifest-path client/Cargo.toml
 ```
 2o1R3JBBaY39F6zRMyKpfZhFq88bEARA1b2bbUe39tVo
 ```
-
-## License
-
-MIT
