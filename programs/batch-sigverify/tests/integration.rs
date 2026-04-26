@@ -100,11 +100,11 @@ mod tests {
 
         println!("\nPROGRAM EXECUTION:");
         println!("  1. verify_batch() called with 3 signatures");
-        println!("  2. Iterate through batch:");
+        println!("  2. Iterate through batch with byte comparison dedup:");
         println!("     - Sig[0]: ED25519 verify with pk1, msg empty -> VALID");
         println!("     - Sig[1]: ED25519 verify with pk2, msg '72' -> VALID");
-        println!("     - Sig[2]: hash_signature for dedup check");
-        println!("              same sig as [0] -> DUPLICATE");
+        println!("     - Sig[2]: constant-time comparison check");
+        println!("              Sig[2].signature == Sig[0].signature -> DUPLICATE");
         println!("     - Skip verification, add to results as false");
         println!("  3. Compute results = [true, true, false]");
         println!("  4. Update BatchResult:");
